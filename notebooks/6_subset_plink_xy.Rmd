@@ -1,0 +1,25 @@
+---
+title: "6_subset_plink_xy.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+Subset PLINK and coordinates dataset
+```{r}
+
+```
+

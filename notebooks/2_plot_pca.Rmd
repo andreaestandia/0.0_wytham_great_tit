@@ -25,7 +25,7 @@ pca <-
                              "600K_processed/600K_pca.eigenvec"),
                     header=F) 
 
-colnames(pca) <- c("dataset", "bto_ring", paste0("PC", seq(1:(dim(pca)[2]-3))))
+colnames(pca) <- c("dataset", "bto_ring", paste0("PC", seq(1:(dim(pca)[2]-2))))
 ```
 
 ```{r}
@@ -36,7 +36,8 @@ immigrant_resident <- read.csv(file.path(data_path,
 nb <- read.csv(file.path(data_path,
                          "wytham_ringing_breeding",
                          "Nest_box_habitat_data.csv"))
-#Natal box (see below commented code on how to get to this file)
+
+#Natal box (see below commented code on how to get to this file). Its probably wrong. Fix
 ringing <- 
   read.csv(file.path(data_path,
                               "wytham_ringing_breeding",
@@ -77,11 +78,19 @@ shape <-
   read_sf(dsn = file.path(data_path,
                                  "wytham_map",
                                  "perimeter.shp"))
+
 df_noNA <- df %>% 
   drop_na(x, y)
 
 df_sf <- st_as_sf(df_noNA, coords = c("x", "y"), crs = st_crs(shape))
 
+```
+
+This step is only to save the map to plot the results from locator
+```{r}
+wytham_map <- 
+  st_transform(shape, crs = st_crs("+init=epsg:4326")) %>% 
+  as('Spatial')
 ```
 
 ```{r}
@@ -244,40 +253,6 @@ fac=genind$loc.fac, cex.fac=0.6)
 boxplot(myLoadings~genind$loc.fac, las=3, ylab="Contribution", xlab="Marker",
 main="Contributions by markers \nto the first global score", col="grey")
 ```
-
-Select natal site for birds
-```{r}
-# ringing <- 
-#   read.csv(file.path(data_path,
-#                               "wytham_ringing_breeding",
-#                               "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>% 
-#   filter(bto_species_code=="GRETI") %>% 
-#   dplyr::as_tibble()
-# 
-# breeding <- 
-#   read.csv(file.path(data_path,
-#                               "wytham_ringing_breeding",
-#                               "LT_breeding_data_greti_bluti_1960_2022.csv")) %>% 
-#   dplyr::as_tibble()
-# 
-# 
-# ringing$natal_box <- NA  
-# 
-# for (bird in unique(ringing$bto_ring)) {
-#   # Subset the data for the current bird and age 1
-#   subset_data <- ringing[ringing$bto_ring == bird & ringing$age == "1", ]
-#   
-#   # Get the unique nb value for the current bird and age 1
-#   unique_nb <- as.character(unique(subset_data$nb))
-#   
-#   # Fill the natal_box column for the corresponding rows
-#   ringing$natal_box[ringing$bto_ring == bird & ringing$age == "1"] <- unique_nb
-# }
-# 
-# write.csv(ringing, "ringing_w_natalbox.csv", row.names = F)
-
-```
-
 
 Isolation by distance
 Mantel test

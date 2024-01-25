@@ -1,0 +1,83 @@
+---
+title: "3_calc_natal_site.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+
+Select natal site for birds
+```{r}
+ringing <-
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                              "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>%
+  filter(bto_species_code=="GRETI") %>%
+  dplyr::as_tibble()
+
+breeding <-
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                              "LT_breeding_data_greti_bluti_1960_2022.csv")) %>%
+  dplyr::as_tibble()
+
+
+ringing$natal_box <- NA
+
+for (bird in unique(ringing$bto_ring)) {
+  # Subset the data for the current bird and age 1
+  subset_data <- ringing[ringing$bto_ring == bird & ringing$age == "1", ]
+
+  # Get the unique nb value for the current bird and age 1
+  unique_nb <- as.character(unique(subset_data$nb))
+
+  # Fill the natal_box column for the corresponding rows
+  ringing$natal_box[ringing$bto_ring == bird & ringing$age == "1"] <- unique_nb
+}
+
+
+#New way of doing it 
+ringing$natal_box <- NA
+
+for (bird in unique(ringing$bto_ring)) {
+  # Subset the data for the current bird and age 1
+  subset_data <- ringing[ringing$bto_ring == bird & ringing$age == "1",]
+  
+  # Get the unique nb value for the current bird and age 1
+  unique_nb <- as.character(unique(subset_data$nb))
+  
+  if (length(unique_nb) > 0) {
+    tmp <- breeding %>%
+      filter(nest_box == unique_nb) %>%
+      filter(year == subset_data$yr[1]) 
+    
+    # Check if tmp has one row meaning there's only one year for each bird and age 1
+    if (nrow(tmp) == 1) {
+      # If tmp has one row, add unique_nb to the natal_box column
+      ringing$natal_box[ringing$bto_ring == bird &
+                          ringing$age == "1"] <- unique_nb
+    }
+  } else {
+    # If unique_nb is empty, set natal_box to NA
+    ringing$natal_box[ringing$bto_ring == bird &
+                        ringing$age == "1"] <- NA
+  }
+}
+
+
+write.csv(ringing, "ringing_w_natalbox.csv", row.names = F)
+
+```

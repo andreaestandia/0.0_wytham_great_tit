@@ -1,0 +1,75 @@
+---
+title: "5_transform_coordinates_xy.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+```{r}
+dataset <- 
+  read.table(file.path(data_path,
+                             "plink",
+                             "600K_processed/600K_pca.eigenvec"),
+                    header=F) %>% 
+  select(V1, V2)
+
+colnames(dataset) <- c("dataset", "bto_ring")
+  
+immigrant_resident <- read.csv(file.path(data_path,
+                                          "wytham_ringing_breeding",
+                                          "immigrant_resident.csv"))
+
+nb <- read.csv(file.path(data_path,
+                         "wytham_ringing_breeding",
+                         "Nest_box_habitat_data.csv"))
+df <- dataset %>% 
+  left_join(immigrant_resident, by ="bto_ring") %>% 
+  left_join(nb, by ="nb")
+
+xy <- df %>% 
+  drop_na(x,y)
+```
+
+```{r}
+# Create a SpatialPoints object using British National Grid coordinates (EPSG:27700)
+bng_coords <- SpatialPoints(coords = xy[, c("x", "y")], proj4string = CRS("+init=epsg:27700"))
+
+# Convert to a simple features (sf) object
+sf_bng <- st_as_sf(bng_coords)
+
+# Transform coordinates to degrees (WGS84, EPSG:4326)
+sf_wgs84 <- st_transform(sf_bng, crs = st_crs("+init=epsg:4326"))
+
+# Extract the transformed coordinates
+df_degrees <- st_coordinates(sf_wgs84)
+
+colnames(df_degrees) <- c("x_degrees", "y_degrees")
+
+df1 <- df %>%
+  mutate(
+    x_degrees = ifelse(!is.na(x), df_degrees[, "x_degrees"], NA),
+    y_degrees = ifelse(!is.na(y), df_degrees[, "y_degrees"], NA)
+  )
+
+
+write.table(df1, file.path(data_path,
+                           "wytham_ringing_breeding",
+                           "xy_degrees.csv"),
+            row.names = F,
+            quote = F)
+
+```
+

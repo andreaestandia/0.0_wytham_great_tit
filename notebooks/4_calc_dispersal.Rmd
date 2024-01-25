@@ -1,0 +1,50 @@
+---
+title: "2_calc_dispersal.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+```{r}
+immigrant_resident <- read.csv(file.path(data_path,
+                                          "wytham_ringing_breeding",
+                                          "immigrant_resident.csv"))
+#Nestbox where they've bred
+nb <- read.csv(file.path(data_path,
+                         "wytham_ringing_breeding",
+                         "Nest_box_habitat_data.csv"))
+#Natal box (see below commented code on how to get to this file)
+ringing <- 
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                               "ringing_w_natalbox.csv")) %>% 
+  as_tibble() %>% 
+  select(bto_ring, natal_box)
+
+df <- immigrant_resident %>% 
+  left_join(nb) 
+
+df_natal <- 
+  df %>% 
+  left_join(ringing, by ="bto_ring") %>% 
+  drop_na(natal_box)
+
+
+filtered_df <- df_natal %>% 
+  filter(as.character(nb) != as.character(natal_box))
+
+
+```
