@@ -1,0 +1,118 @@
+---
+title: "0_common_SNPs.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+```{r}
+map1 <- read.table(file.path(data_path,
+                             "plink",
+                             "10K",
+                             "Wytham10K.bim")) %>% 
+  unite(v103, c("V1", "V4")) %>% 
+  rename(SNP_10K=V2) %>% 
+  rename(NA_10K=V3) %>% 
+  rename(allele1_10K=V5) %>% 
+  rename(allele2_10K=V6)
+
+map2 <- read.table(file.path(data_path,
+                             "plink",
+                             "600K",
+                             "GreatTitsPlink.bim")) %>% 
+  unite(v103, c("V1", "V4")) %>% 
+  rename(SNP_600K=V2) %>% 
+  rename(NA_600K=V3) %>% 
+  rename(allele1_600K=V5) %>% 
+  rename(allele2_600K=V6)
+  
+  
+ref <- read.csv(file.path(data_path,
+                             "plink",
+                             "600K",
+                             "HD_GenomePositions_AllAssemblies.csv")) %>% 
+  unite(v103, c("Chr_build1.03", "Pos_build1.03")) %>% 
+  select("AXNAME", "SNP", "v103")
+
+df <- 
+  ref %>% left_join(map1) %>% 
+  left_join(map2) 
+
+common_snps_good <- 
+  df %>% 
+  drop_na() %>% 
+  filter(as.character(allele1_10K)==as.character(allele1_600K)) %>% 
+  select(AXNAME, SNP)
+
+common_snps_bad <- 
+  df %>% 
+  drop_na() %>% 
+  filter(as.character(allele1_10K)!=as.character(allele1_600K))
+
+write.table(common_snps_good, 
+            file=file.path(data_path,
+                           "plink",
+                           "resources",
+                           "list_common_snps_good"), 
+            sep="\t", 
+            col.names=F, 
+            row.names=F, 
+            quote=F)
+
+write.table(common_snps_good$SNP, 
+            file=file.path(data_path,
+                           "plink",
+                           "resources",
+                           "list_common_snps_10K"), 
+            sep="\t", 
+            col.names=F, 
+            row.names=F, 
+            quote=F)
+
+write.table(common_snps_good$AXNAME, 
+            file=file.path(data_path,
+                           "plink",
+                           "resources",
+                           "list_common_snps_600K"), 
+            sep="\t", 
+            col.names=F, 
+            row.names=F, 
+            quote=F)
+```
+
+Check individuals that have been sequenced twice 
+```{r}
+all_inds_merged <- read.table(file.path(data_path,
+                             "plink",
+                             "common_snps",
+                             "merged_datasets.fam"))
+
+result_df <- all_inds_merged %>%
+  group_by(V2) %>%
+  filter(n() == 1 | (n() > 1 & V1 == "Wytham_UK")) %>% 
+  select(V1,V2)
+
+write.table(result_df, 
+            file=file.path(data_path,
+                           "plink",
+                           "resources",
+                           "unduplicated_ind"), 
+            sep="\t", 
+            col.names=F, 
+            row.names=F, 
+            quote=F)
+```
+

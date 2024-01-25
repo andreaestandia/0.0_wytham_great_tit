@@ -1,0 +1,287 @@
+---
+title: "2_plot_pca.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+```{r}
+pca <- 
+  read.table(file.path(data_path,
+                             "plink",
+                             "600K_processed/600K_pca.eigenvec"),
+                    header=F) 
+
+colnames(pca) <- c("dataset", "bto_ring", paste0("PC", seq(1:(dim(pca)[2]-3))))
+```
+
+```{r}
+immigrant_resident <- read.csv(file.path(data_path,
+                                          "wytham_ringing_breeding",
+                                          "immigrant_resident.csv"))
+#Nestbox where they've bred
+nb <- read.csv(file.path(data_path,
+                         "wytham_ringing_breeding",
+                         "Nest_box_habitat_data.csv"))
+#Natal box (see below commented code on how to get to this file)
+ringing <- 
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                               "ringing_w_natalbox.csv")) %>% 
+  as_tibble() %>% 
+  select(bto_ring, natal_box)
+
+df <- pca %>% 
+  left_join(immigrant_resident) %>% 
+  left_join(nb) 
+
+df_natal <- 
+  df %>% 
+  left_join(ringing, by ="bto_ring") %>% 
+  drop_na(natal_box)
+
+remove_ind <- 
+  df_natal %>% 
+  drop_na(x,y) %>% 
+  distinct(x, y,.keep_all=TRUE) %>% 
+  select(dataset, bto_ring)
+
+write.table(
+  remove_ind,
+  quote = FALSE,
+  row.names = F,
+  col.names = F,
+  file.path(data_path,
+            "plink",
+            "600K_processed",
+            "remove_ind")
+)
+```
+
+Wytham map
+```{r}
+shape <- 
+  read_sf(dsn = file.path(data_path,
+                                 "wytham_map",
+                                 "perimeter.shp"))
+df_noNA <- df %>% 
+  drop_na(x, y)
+
+df_sf <- st_as_sf(df_noNA, coords = c("x", "y"), crs = st_crs(shape))
+
+```
+
+```{r}
+p1 = ggplot() +
+  geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(data = df_sf, aes(color = PC1), size = 2) +
+  theme_minimal() +
+  scale_color_viridis_c(option = "magma") +
+  theme(panel.grid = element_blank())+
+  labs(title="All")
+
+p2 = df_sf %>%
+  filter(imm_res == "immigrant") %>%
+  ggplot() +
+  geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
+  theme_minimal() +
+  scale_color_viridis_c(option = "viridis") +
+  theme(panel.grid = element_blank())+
+  labs(title="Immigrants - Breeding box")
+
+p3 = df_sf %>%
+  filter(imm_res == "resident") %>%
+  ggplot() +
+  geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
+  theme_minimal() +
+  scale_color_viridis_c(option = "viridis") +
+  theme(panel.grid = element_blank())+
+  labs(title="Residents - Breeding box")
+
+p4 = df_sf %>%
+  filter(natal_box != "NA") %>%
+  ggplot() +
+  geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
+  theme_minimal() +
+  scale_color_viridis_c(option = "viridis") +
+  theme(panel.grid = element_blank())+
+  labs(title="Residents - Natal box")
+
+
+p1
+(p2+p3+p4)
+```
+
+```{r}
+# Assuming df is your data frame with columns imm_res and PC1
+residents <- df$PC1[df$imm_res == "resident"]
+immigrants <- df$PC1[df$imm_res == "immigrant"]
+
+# Perform t-test
+t_test_result <- t.test(residents, immigrants)
+
+# Print the results
+summary(t_test_result)
+
+# Violin plot with median and confidence intervals
+p4 = df_sf %>%
+  filter(imm_res != "NA") %>%
+  ggplot(aes(x = imm_res, y = PC1, fill = imm_res)) +
+  geom_violin(trim = FALSE, color = NA) +  
+  geom_point(
+    stat = "summary",
+    fun = "median",
+    color = "darkgrey",
+    size = 2
+  ) +
+  scale_fill_manual(values = c("resident" = "#cfbc2d", "immigrant" = "#408bb3")) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.title.x = element_blank())  
+
+p5 = df_sf %>%
+  filter(imm_res != "NA") %>%
+  ggplot(aes(x = imm_res, y = PC2, fill = imm_res)) +
+  geom_violin(trim = FALSE, color = NA) +  
+  geom_point(
+    stat = "summary",
+    fun = "median",
+    color = "darkgrey",
+    size = 2
+  ) +
+  scale_fill_manual(values = c("resident" = "#cfbc2d", "immigrant" = "#408bb3")) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.title.x = element_blank())  
+
+p6 = df_sf %>%
+  filter(imm_res != "NA") %>%
+  ggplot(aes(x = PC1, y = PC2, col = imm_res)) +
+  geom_point() +  
+  scale_color_manual(values = c("resident" = "#cfbc2d", "immigrant" = "#408bb3")) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) 
+
+p6/(p4+p5)+plot_layout(guides = 'collect')
+#+plot_annotation(title = "Immigrants and residents are not substantially different")
+```
+
+```{r}
+vcf <- pegas::read.vcf(file.path(data_path,
+                             "plink",
+                             "600K_processed",
+                             "plink.vcf"),
+                       from=1,
+                       to=1500)
+
+genind <- pegas::loci2genind(vcf, 
+                      na.alleles = c("."))
+
+xy <- 
+  df_natal %>% 
+  drop_na(x,y) %>% 
+  distinct(x, y,.keep_all=TRUE) %>% 
+  select(x, y)
+
+genind$other$xy <- xy
+
+genind.smry <- summary(genind)
+
+plot(genind.smry$Hobs, genind.smry$Hexp, main="Observed vs expected heterozygosity")
+abline(0,1,col="red")
+
+t.test(genind.smry$Hexp, genind.smry$Hobs,paired=TRUE,var.equal=TRUE)
+
+
+mySpca <- spca(genind, ask=FALSE, type=1, scannf=FALSE)
+
+plot(mySpca)
+
+myCn <- chooseCN(genind$other$xy, type=6, k=10, plot=FALSE)
+
+mySpca2 <- spca(genind,cn=myCn,scannf=FALSE)
+
+barplot(mySpca$eig,main="Eigenvalues of sPCA", col=rep(c("red","grey"),c(1,100)))
+
+barplot(mySpca$eig, main="A variant of the plot\n of sPCA eigenvalues",
+col=spectral(length(mySpca$eig)))
+legend("topright", fill=spectral(2),
+leg=c("Global structures", "Local structures"))
+abline(h=0,col="grey")
+
+summary(mySpca)
+screeplot(mySpca)
+
+colorplot(mySpca,cex=3,main="colorplot of mySpca, first global score")
+
+myLoadings <- mySpca$c1[,1]^2
+names(myLoadings) <- rownames(mySpca$c1)
+loadingplot(myLoadings, xlab="Alleles",
+ylab="Weight of the alleles",
+main="Contribution of alleles \n to the first sPCA axis")
+
+temp <- loadingplot(myLoadings, threshold=quantile(myLoadings, 0.95),
+xlab="Alleles",ylab="Weight of the alleles",
+main="Contribution of alleles \n to the first sPCA axis",
+fac=genind$loc.fac, cex.fac=0.6)
+
+boxplot(myLoadings~genind$loc.fac, las=3, ylab="Contribution", xlab="Marker",
+main="Contributions by markers \nto the first global score", col="grey")
+```
+
+Select natal site for birds
+```{r}
+# ringing <- 
+#   read.csv(file.path(data_path,
+#                               "wytham_ringing_breeding",
+#                               "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>% 
+#   filter(bto_species_code=="GRETI") %>% 
+#   dplyr::as_tibble()
+# 
+# breeding <- 
+#   read.csv(file.path(data_path,
+#                               "wytham_ringing_breeding",
+#                               "LT_breeding_data_greti_bluti_1960_2022.csv")) %>% 
+#   dplyr::as_tibble()
+# 
+# 
+# ringing$natal_box <- NA  
+# 
+# for (bird in unique(ringing$bto_ring)) {
+#   # Subset the data for the current bird and age 1
+#   subset_data <- ringing[ringing$bto_ring == bird & ringing$age == "1", ]
+#   
+#   # Get the unique nb value for the current bird and age 1
+#   unique_nb <- as.character(unique(subset_data$nb))
+#   
+#   # Fill the natal_box column for the corresponding rows
+#   ringing$natal_box[ringing$bto_ring == bird & ringing$age == "1"] <- unique_nb
+# }
+# 
+# write.csv(ringing, "ringing_w_natalbox.csv", row.names = F)
+
+```
+
+
+Isolation by distance
+Mantel test
+Procrustes
+Loess
+sPCA
+EEMS
