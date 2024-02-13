@@ -1,0 +1,60 @@
+---
+title: "plot_map_budburst.Rmd"
+author: "Andrea Estandia"
+date: "11/01/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+```
+
+```{r}
+shape <- 
+  read_sf(dsn = file.path(data_path,
+                                 "wytham_map",
+                                 "perimeter.shp"))
+```
+
+```{r}
+budburst <- read.csv(file.path(data_path, 
+                               "wytham_ringing_breeding",
+                               "oak_budburst_2013_2014.csv"))
+
+df_sf <- st_as_sf(budburst, coords = c("x", "y"), crs = st_crs(shape))
+```
+
+```{r}
+pal <- wesanderson::wes_palette("Zissou1", 100, type = "continuous")
+```
+
+
+```{r}
+ggplot() +
+  geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
+  geom_sf(data = df_sf, aes(color = bb_date_2014), size = 2) +
+  theme_minimal() +
+  scale_color_gradientn(colours = pal) +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="Oak budburst 2014")
+```
+

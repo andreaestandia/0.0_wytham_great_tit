@@ -104,6 +104,8 @@ result_10K <- process_data(ind_10K)
 (result_10K$n_immigrants_data)
 #1022
 
+result_10K
+
 result_common <- process_data(common_dataset)
 
 ind_w_bto_info <- result_common$total_data$bto_ring
@@ -114,5 +116,33 @@ Repeated individuals
 common_ind <- 
   ind_10K %>% 
   filter(sample_name %in% ind_600K$sample_name)
+```
+
+Add phenotype (immigrant or resident to fam file)
+```{r}
+wytham_fam <- read.table(file.path(data_path,
+                                       "plink",
+                                   "10K",
+                                   "Wytham10K.fam"), header = FALSE) %>% 
+  rename(bto_ring=V2)
+
+imm_res <- read.csv(file.path(data_path,
+                                       "plink",
+                                   "10K",
+                                   "10K_imm_res.csv"), header = T)
+
+# Merge the data frames based on the V2 column
+merged_data <- wytham_fam %>% 
+  left_join(imm_res, by = "bto_ring") %>% 
+  select(V1, bto_ring, V3, V4, V5, imm_res)
+
+write.table(merged_data, file.path(data_path,
+                                       "plink",
+                                   "10K",
+                                   "Wytham10K_new.fam"),
+            row.names = F,
+            col.names = F,
+            quote = F)
+
 ```
 

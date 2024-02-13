@@ -22,7 +22,8 @@ source("./src/0.0_wytham_great_tit_source.R")
 pca <- 
   read.table(file.path(data_path,
                              "plink",
-                             "600K_processed/600K_pca.eigenvec"),
+                       #"600K/600K_pca.eigenvec",
+                             "10K/10K_pca.eigenvec"),
                     header=F) 
 
 colnames(pca) <- c("dataset", "bto_ring", paste0("PC", seq(1:(dim(pca)[2]-2))))
@@ -51,11 +52,11 @@ df <- pca %>%
 
 df_natal <- 
   df %>% 
-  left_join(ringing, by ="bto_ring") %>% 
-  drop_na(natal_box)
+  left_join(ringing, by ="bto_ring")
 
 remove_ind <- 
   df_natal %>% 
+  drop_na(natal_box) %>% 
   drop_na(x,y) %>% 
   distinct(x, y,.keep_all=TRUE) %>% 
   select(dataset, bto_ring)
@@ -79,7 +80,7 @@ shape <-
                                  "wytham_map",
                                  "perimeter.shp"))
 
-df_noNA <- df %>% 
+df_noNA <- df_natal %>% 
   drop_na(x, y)
 
 df_sf <- st_as_sf(df_noNA, coords = c("x", "y"), crs = st_crs(shape))
@@ -88,9 +89,18 @@ df_sf <- st_as_sf(df_noNA, coords = c("x", "y"), crs = st_crs(shape))
 
 This step is only to save the map to plot the results from locator
 ```{r}
-wytham_map <- 
+map <- 
   st_transform(shape, crs = st_crs("+init=epsg:4326")) %>% 
   as('Spatial')
+
+save(map, 
+     file=file.path(data_path,
+               "wytham_map",
+               "wytham_map.RData"))
+```
+
+```{r}
+pal <- wesanderson::wes_palette("Zissou1", 100, type = "continuous")
 ```
 
 ```{r}
@@ -98,44 +108,155 @@ p1 = ggplot() +
   geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
   geom_sf(data = df_sf, aes(color = PC1), size = 2) +
   theme_minimal() +
-  scale_color_viridis_c(option = "magma") +
-  theme(panel.grid = element_blank())+
-  labs(title="All")
+  scale_color_gradientn(colours = pal) +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
+  labs(title="Residents - Natal box")
 
 p2 = df_sf %>%
   filter(imm_res == "immigrant") %>%
   ggplot() +
   geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
-  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
-  theme_minimal() +
-  scale_color_viridis_c(option = "viridis") +
-  theme(panel.grid = element_blank())+
+  geom_sf(aes(color = PC1), size = 2)+  
+    scale_color_gradientn(colours = pal) +
+    #scale_color_viridis_c(name = "PC1", option = "viridis") +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
   labs(title="Immigrants - Breeding box")
 
 p3 = df_sf %>%
   filter(imm_res == "resident") %>%
   ggplot() +
   geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
-  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
-  theme_minimal() +
-  scale_color_viridis_c(option = "viridis") +
-  theme(panel.grid = element_blank())+
+  geom_sf(aes(color = PC1), size = 2) +  
+    scale_color_gradientn(colours = pal) +
+    #scale_color_viridis_c(name = "PC1", option = "viridis") +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
   labs(title="Residents - Breeding box")
 
 p4 = df_sf %>%
   filter(natal_box != "NA") %>%
   ggplot() +
   geom_sf(data = shape, fill = "lightgrey", color = "lightgrey", size = 0) +
-  geom_sf(aes(color = PC1), size = 2) +  # Reversed order of geom_sf layers
-  theme_minimal() +
-  scale_color_viridis_c(option = "viridis") +
-  theme(panel.grid = element_blank())+
+  geom_sf(aes(color = PC1), size = 2) +  
+    #scale_color_viridis_c(name = "PC1", option = "viridis") +
+    scale_color_gradientn(colours = pal) +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )+
   labs(title="Residents - Natal box")
 
 
 p1
-(p2+p3+p4)
+(p2/p3/p4) + plot_layout(guides = "collect")
+
+resident_plot <- p3 + p4 + plot_layout(guides = "collect")
+immigrant_plot <- p2 + plot_layout(guides = "collect")
+
+ggsave(resident_plot,
+       filename = file.path(figures_path,
+                 "resident_plot.pdf"), 
+       device = "pdf",
+       width = 12, 
+       height = 6, 
+       units = "in")
+
+ggsave(immigrant_plot,
+       filename = file.path(figures_path,
+                 "immigrant_plot.pdf"), 
+       device = "pdf",
+       width = 12, 
+       height = 6, 
+       units = "in")
 ```
+
+```{r}
+pc1_pc2 <- 
+  df %>% 
+  ggplot(aes(x=PC1, y=PC2))+
+  #geom_point(col="#c7a21e")+ resident
+  geom_point(col="#4b8f94")+
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri")
+    )+
+    labs(x = "PC1", y = "PC2") 
+
+ggsave(pc1_pc2,
+       filename = file.path(figures_path,
+                 "pc1_pc2_resident.pdf"), 
+       device = "pdf",
+       width = 12, 
+       height = 6, 
+       units = "in")
+
+ggsave(pc1_pc2,
+       filename = file.path(figures_path,
+                 "pc1_pc2_immigrants.pdf"), 
+       device = "pdf",
+       width = 12, 
+       height = 6, 
+       units = "in")
+
+pal_d <- wesanderson::wes_palette("Zissou1", 10, type = "discrete")
+# Create 3D scatter plot
+plotly::plot_ly(df, 
+                x = ~PC1, 
+                y = ~PC2, 
+                z = ~PC3, 
+                type = "scatter3d", 
+                mode = "markers", 
+                color = ~section,
+                colors = "Dark2",
+                name = ~section#,
+                #frame = ~section
+                
+                ) 
+
+
+```
+
 
 ```{r}
 # Assuming df is your data frame with columns imm_res and PC1

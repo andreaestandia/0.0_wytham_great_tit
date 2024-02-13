@@ -63,7 +63,7 @@ Pruning and filtering data. NOTE no sex chromosomes present
 600K
 
 ```
-~/Documents/programs/plink-1.07-x86_64/plink --bfile 600K/GreatTitsPlink --keep resources/wytham_ind_600K --make-bed --out 600K_processed/600K --noweb
+~/Documents/programs/plink --bfile 600K/GreatTitsPlink --keep resources/wytham_ind_600K --make-bed --out 600K_processed/600K --chr-set 33
 
 ~/Documents/programs/plink --bfile 600K_processed/600K --indep-pairwise 1000 50 0.2 --out 600K_processed/600K_pruned --chr-set 33
 ~/Documents/programs/plink --bfile 600K_processed/600K --extract 600K_processed/600K_pruned.prune.in --make-bed --out 600K_processed/600K_pruned --chr-set 33
@@ -112,5 +112,25 @@ Exclude individuals from spatial PCA and recode to vcf to be able to import to
 
 ```
 ~/Documents/programs/plink --bfile 600K_pruned_clean --keep remove_ind --make-bed --recode vcf --chr-set 33
+```
+
+
+
+Create pruned 10K dataset to explore relatedness
+
+```
+~/Documents/programs/plink --bfile 10K/Wytham10K --indep-pairwise 1000 50 0.2 --out 10K/10K_pruned --chr-set 33
+~/Documents/programs/plink --bfile 10K/Wytham10K --extract 10K/10K_pruned.prune.in --make-bed --out 10K/10K_pruned --chr-set 33
+#maf has to be high because rare variants can distort IBD estimations
+~/Documents/programs/plink --bfile 10K/10K_pruned  --geno 0.05 --mind 0.05 --hwe 1e-6 --maf 0.3 --make-bed --out 10K/10K_pruned_clean --chr-set 33
+```
+
+```
+#with make-rel I get a diagonal of 1s but with king I get the kinship estimates so easier to compare with social pedigree
+~/Documents/programs/plink --bfile 10K/10K_pruned_clean_maf0.3 --genome gz --rel-check --ppc-gap 5 --chr-set 33
+~/Documents/programs/plink --bfile 10K/10K_pruned_clean --make-rel square --chr-set 33 --out 10K/10K_pruned_clean
+~/Documents/programs/plink --bfile 10K/10K_pruned_clean --make-grm-gz no-gz --chr-set 33 --out 10K/10K_pruned_clean
+~/Documents/programs/plink2 --bfile 10K/10K_pruned_clean --make-king square --chr-set 33 --out 10K/10K_pruned_clean
+
 ```
 

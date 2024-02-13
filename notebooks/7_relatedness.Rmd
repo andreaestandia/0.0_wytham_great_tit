@@ -1,0 +1,172 @@
+---
+title: "7_relatedness.Rmd"
+author: "Andrea Estandia"
+date: "08/02/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+# Knitr settings: 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+source("./src/0.0_wytham_great_tit_source.R")
+library(kinship2)
+```
+
+```{r}
+relatedness <- 
+  data.table::fread(file.path(data_path, 
+                            "plink",
+                            "10K",
+                            "plink_min.genome.gz"))
+
+ringing <- 
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                               "ringing_w_natalbox.csv"))
+
+fam <-  data.table::fread(file.path(data_path, 
+                            "plink",
+                            "10K",
+                            "Wytham10K.fam")) %>% 
+  rename(ped=V1) %>% 
+  rename(bto_ring=V2) %>% 
+  rename(father=V3) %>%
+  rename(mother=V4) %>%
+  rename(sex=V5) %>% 
+  rename(pheno=V6) %>% 
+  select(-sex) %>% 
+  left_join(ringing, by="bto_ring") %>% 
+  distinct(bto_ring, .keep_all=TRUE) %>% 
+  as_tibble() %>% 
+  select(bto_ring,
+         mother,
+         father,
+         sex,
+         pheno) %>%
+  mutate(pheno = if_else(pheno == "-9", NA_character_, as.character(pheno))) %>% 
+  mutate(pheno = if_else(pheno == "resident", "0", pheno)) %>%
+  mutate(pheno = if_else(pheno == "immigrant", "1", pheno)) %>%  
+  mutate(mother=if_else(mother == 0, NA_character_, as.character(mother))) %>% 
+  mutate(father=if_else(father == 0, NA_character_, as.character(father))) %>%
+  mutate(sex = if_else(is.na(sex) & !is.na(father) & tolower(father) %in% c("m"), "M", sex))
+
+test1newmom <- with(fam, fixParents(bto_ring, father, mother, sex, missid="NA"))
+newped <- with(test1newmom, pedigree(id, dadid, momid, sex, missid="0"))
+
+#plot(newped)
+
+kinship_mat <- kinship(newped)
+
+depth <- kindepth(fam$bto_ring,fam$father, fam$mother)
+
+
+# Assuming kinship_mat is your matrix
+n_rows <- dim(kinship_mat)[1]
+means_vector <- numeric(n_rows)
+
+for (i in 1:n_rows) {
+  means_vector[i] <- mean(kinship_mat[i, ])
+}
+
+# Now, means_vector contains the means for each row in kinship_mat
+print(means_vector)
+
+
+#heatmap(kinship_mat)
+```
+
+```{r}
+genetic_relatedness <- 
+  as.matrix(read.table(file.path(data_path, 
+                            "plink",
+                            "10K",
+                            "10K_pruned_clean.king"), header=F))
+
+genetic_relatedness_id <- 
+  read.table(file.path(data_path, 
+                            "plink",
+                            "10K",
+                            "10K_pruned_clean.king.id"))
+colnames(genetic_relatedness) <- genetic_relatedness_id$V2
+rownames(genetic_relatedness) <- genetic_relatedness_id$V2
+
+common_colnames <- intersect(colnames(kinship_mat), colnames(genetic_relatedness))
+
+common_cols_kinship_mat <- kinship_mat[common_colnames, common_colnames]
+common_cols_genetic_relatedness <- genetic_relatedness[common_colnames, common_colnames]
+
+common_cols_kinship_mat_subset <- common_cols_kinship_mat[1:100, 1:100]
+common_cols_genetic_relatedness_subset <- common_cols_genetic_relatedness[1:100, 1:100]
+
+mantel_result <- vegan::mantel(common_cols_kinship_mat, common_cols_genetic_relatedness)
+
+# Replace negative values with 0
+common_cols_genetic_relatedness <- pmax(common_cols_genetic_relatedness, 0)
+
+row_sums <- rowSums(common_cols_genetic_relatedness)
+
+top_10_percent_indices <- order(row_sums)[1:round(length(row_sums) * 0.1)]
+
+# Get the names of the top 10% least related individuals
+top_10_percent_least_related <- rownames(common_cols_genetic_relatedness)[top_10_percent_indices]
+
+top_10_percent_least_related <- 
+  as.data.frame(top_10_percent_least_related) %>% 
+  rename(bto_ring=top_10_percent_least_related) %>% 
+  left_join(fam) %>% 
+  mutate(top_10="top10")
+
+# Find the indices of the top 10% most related individuals
+top_10_percent_indices <- order(row_sums, decreasing = TRUE)[1:round(length(row_sums) * 0.1)]
+
+# Get the names of the top 10% most related individuals
+top_10_percent_most_related <- rownames(common_cols_genetic_relatedness)[top_10_percent_indices]
+
+# Create a data frame, rename columns, left join with 'fam', and add 'top_10' column
+result <- as.data.frame(top_10_percent_most_related) %>%
+  rename(bto_ring = top_10_percent_most_related) %>%
+  left_join(fam, by = "bto_ring") %>%
+  mutate(top_10 = "top10")
+```
+
+Search for outliers
+```{r}
+t <- 
+  df %>% left_join(top_10_percent_least_related, by ="bto_ring")
+
+t %>% 
+  ggplot(aes(x=PC1, y=PC2, col=pheno))+
+  geom_point()+
+  gghighlight(top_10=="top10")
+```
+
+
+```{r}
+relatedness %>% 
+  ggplot(aes(x = PI_HAT)) + 
+  geom_histogram(bins = 100)
+
+relatedness %>% 
+  filter(PI_HAT>0.25) %>% 
+  ggplot(aes(x = PI_HAT)) + 
+  geom_histogram(bins = 100)
+
+relatedness %>% 
+  group_by(IID1) %>% 
+  summarise(mean_pi = mean(PI_HAT)) %>% 
+  ggplot(aes(x = mean_pi)) + 
+  geom_histogram(bins = 100)
+
+relatedness %>% 
+  filter(EZ < 0.1) %>% 
+  filter(PI_HAT>0.1)
+```
+
+

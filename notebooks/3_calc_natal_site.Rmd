@@ -21,18 +21,37 @@ source("./src/0.0_wytham_great_tit_source.R")
 
 Select natal site for birds
 ```{r}
+#Nest box info and coordinates
+nb <- read.csv(file.path(data_path,
+                         "wytham_ringing_breeding",
+                         "Nest_box_habitat_data.csv")) %>% 
+  select(nb, x, y)
+
+nb_natal <- 
+  nb %>% 
+  rename(natal_box=nb) %>% 
+  rename(x_natal=x) %>% 
+  rename(y_natal=y)
+
+nb_breeding <- 
+  nb %>% 
+  rename(breeding_box=nb) %>% 
+  rename(x_breeding=x) %>% 
+  rename(y_breeding=y)
+
 ringing <-
   read.csv(file.path(data_path,
                               "wytham_ringing_breeding",
                               "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>%
   filter(bto_species_code=="GRETI") %>%
-  dplyr::as_tibble()
+  dplyr::as_tibble() %>% 
+  left_join(nb, by="nb")
 
 breeding <-
   read.csv(file.path(data_path,
                               "wytham_ringing_breeding",
                               "LT_breeding_data_greti_bluti_1960_2022.csv")) %>%
-  dplyr::as_tibble()
+  dplyr::as_tibble() 
 
 
 ringing$natal_box <- NA
@@ -48,36 +67,164 @@ for (bird in unique(ringing$bto_ring)) {
   ringing$natal_box[ringing$bto_ring == bird & ringing$age == "1"] <- unique_nb
 }
 
+```
 
-#New way of doing it 
-ringing$natal_box <- NA
+Calculate dispersal between natal and breeding site
+```{r}
+ringing_natal <-
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                              "ringing_w_natalbox.csv"))
 
-for (bird in unique(ringing$bto_ring)) {
-  # Subset the data for the current bird and age 1
-  subset_data <- ringing[ringing$bto_ring == bird & ringing$age == "1",]
+mum <- ringing_natal %>% 
+  drop_na(natal_box) %>% 
+  filter(bto_ring %in% breeding$mother)
+
+breeding_mum <- breeding %>% 
+  rename(bto_ring=mother)
+
+mum_df <- mum %>%
+  left_join(breeding_mum, by = "bto_ring") %>%
+  select(bto_ring, sex, natal_box, nest_box, year) %>% 
+  rename(breeding_box=nest_box) %>% 
+  left_join(nb_breeding) %>% 
+  left_join(nb_natal)
+
+dad <- 
+  ringing_natal %>% 
+  drop_na(natal_box) %>% 
+  filter(bto_ring %in% breeding$father) 
+
+breeding_dad <- breeding %>% 
+  rename(bto_ring=father)
+
+dad_df <-dad %>% 
+  left_join(breeding_dad, by ="bto_ring") %>% 
+  select(bto_ring, sex, natal_box, nest_box, year) %>%
+  rename(breeding_box=nest_box) %>% 
+  left_join(nb_breeding) %>% 
+  left_join(nb_natal) %>% 
+  drop_na(x_natal,
+          y_natal,
+          x_breeding,
+          y_breeding)
+```
+
+
+```{r}
+shape <- 
+  read_sf(dsn = file.path(data_path,
+                                 "wytham_map",
+                                 "perimeter.shp"))
+```
+
+
+```{r}
+# Create a new data frame with breeding and natal coordinates
+line_data <- data.frame(
+  x_breeding = mum_df$x_breeding,
+  y_breeding = mum_df$y_breeding,
+  x_natal = mum_df$x_natal,
+  y_natal = mum_df$y_natal
+)
+
+# Calculate distances between breeding and natal coordinates
+line_data$distance <- sqrt((line_data$x_breeding - line_data$x_natal)^2 + (line_data$y_breeding - line_data$y_natal)^2)
+```
+
+```{r}
+plot_distance_combined <- function(df, shape, gender) {
+  # Create a new data frame with breeding and natal coordinates
+  line_data <- data.frame(
+    x_breeding = df$x_breeding,
+    y_breeding = df$y_breeding,
+    x_natal = df$x_natal,
+    y_natal = df$y_natal
+  )
+
+  # Calculate distances between breeding and natal coordinates
+  line_data$distance <- sqrt((line_data$x_breeding - line_data$x_natal)^2 + (line_data$y_breeding - line_data$y_natal)^2)
+
+  # Plot 1 - Breeding to Natal Coordinates with Distance Colored Lines
+  p1 <- ggplot() +
+    geom_sf(data = shape, color = "grey", fill = "grey") +
+    geom_segment(data = line_data, aes(x = x_breeding, y = y_breeding, xend = x_natal, yend = y_natal, color = distance), size = 1, alpha = 0.05) +
+    scale_color_viridis_c(name = "Distance", option = "viridis") +
+    labs(title = NULL, subtitle = NULL, x = "\nEasting\n", y = "\nNorthing\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri"),
+      legend.position = "bottom"
+    )
+
+  # Plot 2 - Density Plot of Distances between Breeding and Natal site
+  p2 <- ggplot(line_data, aes(x = distance)) +
+    geom_density(fill = "#dba469", color = NA, alpha = 0.7) +
+    geom_vline(aes(xintercept = median(distance, na.rm = TRUE)), linetype = "dashed") +
+    annotate("text", 
+             x = median(line_data$distance, na.rm = TRUE) + 1000, 
+             y = 0.0008, 
+             label = paste("Median: ", round(median(line_data$distance, na.rm = TRUE), 2), "m"),
+             size = 3,
+             family = "Calibri") +
+    labs(title = NULL, subtitle = NULL, x = "Distance", y = "\nDensity\n") +
+    theme_minimal() +
+    theme(
+      plot.background = element_rect(fill = "transparent", color = NA),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      text = element_text(family = "Calibri"),
+      axis.title = element_text(family = "Calibri")
+    )
+
+  # Combine the two plots with patchwork
+  combined_plots <- p1 + p2 + plot_layout(guides = "collect") +
+    plot_annotation(title = paste("Distance between natal and breeding site -", gender),
+                    theme = theme(plot.title = element_text(family = "Calibri")))
   
-  # Get the unique nb value for the current bird and age 1
-  unique_nb <- as.character(unique(subset_data$nb))
-  
-  if (length(unique_nb) > 0) {
-    tmp <- breeding %>%
-      filter(nest_box == unique_nb) %>%
-      filter(year == subset_data$yr[1]) 
-    
-    # Check if tmp has one row meaning there's only one year for each bird and age 1
-    if (nrow(tmp) == 1) {
-      # If tmp has one row, add unique_nb to the natal_box column
-      ringing$natal_box[ringing$bto_ring == bird &
-                          ringing$age == "1"] <- unique_nb
-    }
-  } else {
-    # If unique_nb is empty, set natal_box to NA
-    ringing$natal_box[ringing$bto_ring == bird &
-                        ringing$age == "1"] <- NA
-  }
+  return(combined_plots)
 }
 
+# Example usage for mum_df
+mum_combined_plots <- plot_distance_combined(mum_df, shape, "Female")
 
-write.csv(ringing, "ringing_w_natalbox.csv", row.names = F)
+# Display the combined plots
+mum_combined_plots
+
+# Example usage for mum_df
+dad_combined_plots <- plot_distance_combined(dad_df, shape, "Male")
+
+# Display the combined plots
+dad_combined_plots
+
+mum_combined_plots/dad_combined_plots+
+    plot_annotation(title = paste("Distance between natal and breeding site"),
+                    theme = theme(plot.title = element_text(family = "Calibri")))
+```
+
+Calculate pedigree
+```{r}
+combined_data <- rbind(mum_df, dad_df)
+
+ringing <-
+  read.csv(file.path(data_path,
+                              "wytham_ringing_breeding",
+                              "ebmp_database_ringing_record_export_GT&BT_all.csv")) %>%
+  filter(bto_species_code=="GRETI") %>%
+  dplyr::as_tibble() %>% 
+  left_join(nb, by="nb")
+
+for bto_ring in mum_df 
+if natal_box %in% ringing$nb and bto_ring 
+
+ped <- pedigree(combined_data, id = "bto_ring", dadid = "FatherID", momid = "MotherID", sex = "sex")
+
 
 ```
+
